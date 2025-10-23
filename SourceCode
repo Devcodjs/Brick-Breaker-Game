@@ -1,0 +1,307 @@
+#include<iostream>
+#include<conio.h>
+#include<dos.h>
+#include<stdlib.h>
+#include<string.h>
+#include<windows.h>
+#include<time.h>
+#include<string>
+
+#define SCREEN_WIDTH 52
+#define SCREEN_HEIGHT 20
+
+#define MINX 2
+#define MINY 2
+#define MAXX 49
+#define MAXY 19
+
+using namespace std;
+
+HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+COORD CursorPosition;
+
+enum COLORS {
+    BLACK = 0, BLUE = 1, GREEN = 2, CYAN = 3, RED = 4,
+    MAGENTA = 5, YELLOW = 6, WHITE = 7, GRAY = 8,
+    BRIGHT_BLUE = 9, BRIGHT_GREEN = 10, BRIGHT_CYAN = 11,
+    BRIGHT_RED = 12, BRIGHT_MAGENTA = 13, BRIGHT_YELLOW = 14, BRIGHT_WHITE = 15
+};
+
+int bricks[24][2] = {
+    {2,7}, {2,12}, {2,17}, {2,22}, {2,27}, {2,32}, {2,37}, {2,42},
+    {4,7}, {4,12}, {4,17}, {4,22}, {4,27}, {4,32}, {4,37}, {4,42},
+    {6,7}, {6,12}, {6,17}, {6,22}, {6,27}, {6,32}, {6,37}, {6,42}
+};
+
+int visibleBricks[24] = {1};
+int sliderPos[2] = {18,22};
+int ballPos[2] = {17,26};
+int startBall = 0, dir = 1, bricksLeft = 24;
+int score = 0, win = 0, lose = 0;
+
+
+int paddleLength = 9;
+int ballSpeed = 30;
+int movementStep = 7;
+
+void setColor(int color) {
+    SetConsoleTextAttribute(console, color);
+}
+
+void gotoxy(int x, int y) {
+    CursorPosition.X = x;
+    CursorPosition.Y = y;
+    SetConsoleCursorPosition(console, CursorPosition);
+}
+
+void setcursor(bool visible, DWORD size) {
+    CONSOLE_CURSOR_INFO lpCursor;
+    lpCursor.bVisible = visible;
+    lpCursor.dwSize = size;
+    SetConsoleCursorInfo(console, &lpCursor);
+}
+
+void drawBorder() {
+    setColor(BRIGHT_WHITE);
+    for(int i=0; i<SCREEN_WIDTH; i++) {
+        gotoxy(i,0); cout<<"-";
+        gotoxy(i,SCREEN_HEIGHT); cout<<"-";
+    }
+    for(int i=0; i<SCREEN_HEIGHT; i++) {
+        gotoxy(0,i); cout<<"|";
+        gotoxy(SCREEN_WIDTH,i); cout<<"|";
+    }
+}
+
+void drawBricks() {
+    for(int i=0; i<24; i++) {
+        if(visibleBricks[i]) {
+            setColor(BRIGHT_RED + (i/8));
+            gotoxy(bricks[i][1], bricks[i][0]);
+            cout<<"####";
+        }
+    }
+}
+
+void drawScore() {
+    setColor(BRIGHT_WHITE);
+    gotoxy(2, SCREEN_HEIGHT+1);
+    cout<<"Score: "<<score<<"  Difficulty: ";
+    if(paddleLength == 13) cout<<"Easy";
+    else if(paddleLength == 9) cout<<"Medium";
+    else cout<<"Hard";
+}
+
+void ballHitSlider() {
+    if(ballPos[1] >= sliderPos[1] && ballPos[1] <= sliderPos[1]+paddleLength) {
+        if(ballPos[0] == sliderPos[0]-1) {
+            if(dir == 3) dir = 2;  
+            else if(dir == 4) dir = 1; 
+            setColor(BRIGHT_CYAN);
+            gotoxy(sliderPos[1], sliderPos[0]);
+            cout<<string(paddleLength, '=');
+        }
+    }
+}
+
+void ballHitBrick() {
+    for(int i=0; i<24; i++) {
+        if(visibleBricks[i] && ballPos[0] == bricks[i][0] && 
+           ballPos[1] >= bricks[i][1] && ballPos[1] <= bricks[i][1]+3) {
+            visibleBricks[i] = 0;
+            bricksLeft--;
+            score += 10;
+            dir = (dir < 3) ? 3 : 4;
+            
+            setColor(BRIGHT_YELLOW);
+            gotoxy(ballPos[1]-1, ballPos[0]); cout<<" * ";
+            gotoxy(ballPos[1]-1, ballPos[0]-1); cout<<"* *";
+            Sleep(50);
+        }
+    }
+}
+
+int selectDifficulty() {
+    system("cls");
+    setColor(BRIGHT_CYAN);
+    cout<<"\n\n";
+    cout << "0000   00000   000   0000  0   0     \n";
+    cout << "0   0  0      0   0  0   0  0 0      \n";                    
+    cout << "00000  0000   00000  0   0   0       \n";
+    cout << "0  0   0      0   0  0   0   0       \n";
+    cout << "0   0  00000  0   0  0000    0       \n";
+    setColor(BRIGHT_WHITE);
+    gotoxy(10, 9);  cout<<"1. EASY   (Large Paddle, Slow Ball)";
+    gotoxy(10,10); cout<<"2. MEDIUM (Normal Paddle, Regular Speed)";
+    gotoxy(10,11); cout<<"3. HARD   (Small Paddle, Fast Ball)";
+    gotoxy(10,12); cout<<"Select Difficulty: ";
+    
+    while (_kbhit()) _getch();
+    return _getche();
+}
+
+void play() {
+    while(!lose && !win && bricksLeft) {
+        system("cls");
+        drawBorder();
+        drawBricks();
+        drawScore();
+
+        setColor(BRIGHT_CYAN);
+        gotoxy(sliderPos[1], sliderPos[0]);
+        cout<<string(paddleLength, '=');
+
+        setColor(BRIGHT_YELLOW);
+        gotoxy(ballPos[1], ballPos[0]); cout<<"O";
+
+        if(kbhit()) {
+            char ch = _getch();
+            if((ch == 'd' || ch == 'D' || ch == 77) && (sliderPos[1]+paddleLength < MAXX))
+                sliderPos[1] += movementStep;
+            if((ch == 'a' || ch == 'A' || ch == 75) && (sliderPos[1] > MINX))
+                sliderPos[1] -= movementStep;
+            if(ch == 32) startBall = 1;
+            if(ch == 27) break;
+        }
+
+        if(startBall) {
+            switch(dir) {
+                case 1: 
+                    ballPos[0]--; 
+                    ballPos[1] += 2;
+                    if(ballPos[1] > MAXX) dir = 2;
+                    if(ballPos[0] < MINY) dir = 4;
+                    break;
+                case 2: 
+                    ballPos[0]--; 
+                    ballPos[1] -= 2;
+                    if(ballPos[1] < MINX) dir = 1;
+                    if(ballPos[0] < MINY) dir = 3;
+                    break;
+                case 3: 
+                    ballPos[0]++; 
+                    ballPos[1] -= 2;
+                    if(ballPos[1] < MINX) dir = 4;
+                    if(ballPos[0] > MAXY) lose = 1;
+                    break;
+                case 4: 
+                    ballPos[0]++; 
+                    ballPos[1] += 2;
+                    if(ballPos[1] > MAXX) dir = 3;
+                    if(ballPos[0] > MAXY) lose = 1;
+                    break;
+            }
+            ballHitSlider();
+            ballHitBrick();
+        }
+        Sleep(ballSpeed);
+    }
+
+    system("cls");
+    setColor(lose ? BRIGHT_RED : BRIGHT_GREEN);
+    gotoxy(10,5); cout<<"+---------------------+";
+    gotoxy(10,6); cout<<"|  "<<(lose ? "   GAME OVER    " : "    YOU WIN!    ")<<"  |";
+    gotoxy(10,7); cout<<"+---------------------+";
+    setColor(WHITE);
+    gotoxy(10,9); cout<<"Final Score: "<<score;
+    _getch();
+}
+
+void instructions() {
+    system("cls");
+    setColor(BRIGHT_CYAN);
+    cout << "00000  0   0  00000  00000  0000   0   0  00000  00000  00000  000   0   0  00000\n";
+    cout << "  0    00  0  0        0    0   0  0   0  0        0      0   0   0  00  0  0    \n";
+    cout << "  0    0 0 0  00000    0    0000   0   0  0        0      0   0   0  0 0 0  00000\n";
+    cout << "  0    0  00      0    0    0  0   0   0  0        0      0   0   0  0  00      0\n";
+    cout << "00000  0   0  00000    0    0   0   000   00000    0    00000  000   0   0  00000\n";
+
+    cout<<"\n\n";
+    cout<<"\n\n";
+    setColor(BRIGHT_WHITE);
+    cout<<" Controls:\n";
+    cout<<" - A/Left Arrow: Move paddle left\n";
+    cout<<" - D/Right Arrow: Move paddle right\n";
+    cout<<" - Space: Launch ball\n";
+    cout<<" - ESC: Pause/Exit\n\n";
+    cout<<" Objective:\n";
+    cout<<" - Break all bricks without missing the ball!\n";
+    cout<<" - Difficulty affects paddle size and ball speed\n";
+    setColor(BRIGHT_MAGENTA);
+    gotoxy(10,20); cout<<"Press any key to continue...";
+    _getch();
+}
+
+int main() {
+    setcursor(0,0);
+    while(true) {
+        system("cls");
+        setColor(BRIGHT_CYAN);
+        cout<<"\n\n";
+        cout << "\n\n";
+        cout << "w   w  00000  0      0000  OOO  M   M  00000     0   0  0   0  0   0  00000  00000  0000   0000\n";
+        cout << "w   w  0      0     0     O   O M M M  0         0   0  0   0  00  0    0    0      0   0 0    \n";
+        cout << "w   w  000    0     0     O   O M M M  000       00000  0   0  0 0 0    0    000    0000   000 \n";
+        cout << "w w w  0      0     0     O   O M   M  0         0   0  0   0  0  00    0    0      0  0      0\n";
+        cout << " w w   00000  00000  0000  OOO  M   M  00000     0   0   000   0   0    0    00000  0   0 0000\n";
+        setColor(BRIGHT_WHITE);
+        gotoxy(10,9);  cout<<"1. START GAME";
+        gotoxy(10,10); cout<<"2. INSTRUCTIONS";
+        gotoxy(10,11); cout<<"3. QUIT";
+        gotoxy(10,12); cout<<"SELECT OPTION: ";
+
+        while (_kbhit()) _getch();
+
+        char choice = _getche();
+
+        switch(choice) {
+            case '1':
+                switch(selectDifficulty()) {
+                    case '1': 
+                        paddleLength = 13; 
+                        ballSpeed = 50; 
+                        movementStep = 5; 
+                        break;
+                    case '2': 
+                        paddleLength = 9;  
+                        ballSpeed = 30; 
+                        movementStep = 7; 
+                        break;
+                    case '3': 
+                        paddleLength = 5;  
+                        ballSpeed = 15; 
+                        movementStep = 9; 
+                        break;
+                    default:  
+                        paddleLength = 9;  
+                        ballSpeed = 30; 
+                        movementStep = 7;
+                }
+                
+                dir = 1;
+                sliderPos[0] = 18;
+                sliderPos[1] = (MAXX - paddleLength)/2;
+                ballPos[0] = 17;
+                ballPos[1] = sliderPos[1] + paddleLength/2;
+                startBall = 0;
+                bricksLeft = 24;
+                score = 0;
+                win = 0; 
+                lose = 0;
+                fill_n(visibleBricks, 24, 1);
+                play();
+                break;
+            case '2': 
+                instructions(); 
+                break;  
+            case '3': 
+                exit(0);
+            default:
+                
+                gotoxy(10,13); cout<<"Invalid choice! Press any key...";
+                _getch();
+                break;
+        }
+    }
+    return 0;
+}
